@@ -1,15 +1,17 @@
+mod backend;
 mod settings;
 mod system;
 mod util;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, RunEvent, State};
 
 use settings::Settings;
 
 pub struct AppState {
     pub settings: Mutex<Settings>,
+    pub backend: backend::BackendCtl,
 }
 
 impl AppState {
@@ -43,6 +45,36 @@ async fn system_info(state: State<'_, AppState>) -> CmdResult<system::SystemInfo
     tauri::async_runtime::spawn_blocking(move || system::info(&runtime_dir))
         .await
         .map_err(err)
+}
+
+#[tauri::command]
+async fn backend_start(app: AppHandle, state: State<'_, AppState>) -> CmdResult<backend::BackendStatus> {
+    let s = state.settings();
+    backend::start(&app, &state.backend, &s).await.map_err(err)
+}
+
+#[tauri::command]
+async fn backend_stop(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    backend::stop(&app, &state.backend).await.map_err(err)
+}
+
+#[tauri::command]
+async fn backend_restart(app: AppHandle, state: State<'_, AppState>) -> CmdResult<backend::BackendStatus> {
+    backend::stop(&app, &state.backend).await.map_err(err)?;
+    tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+    let s = state.settings();
+    backend::start(&app, &state.backend, &s).await.map_err(err)
+}
+
+#[tauri::command]
+async fn backend_status(state: State<'_, AppState>) -> CmdResult<backend::BackendStatus> {
+    let s = state.settings();
+    Ok(backend::status(&state.backend, &s).await)
+}
+
+#[tauri::command]
+fn backend_logs(state: State<'_, AppState>) -> Vec<String> {
+    state.backend.logs.lock().map(|l| l.iter().cloned().collect()).unwrap_or_default()
 }
 
 #[derive(serde::Serialize)]
@@ -88,23 +120,38 @@ fn open_url(url: String) -> CmdResult<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let settings = Settings::load(app.handle());
-            app.manage(AppState { settings: Mutex::new(settings) });
+            app.manage(AppState {
+                settings: Mutex::new(settings),
+                backend: backend::BackendCtl::default(),
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_settings,
             save_settings,
             system_info,
+            backend_start,
+            backend_stop,
+            backend_restart,
+            backend_status,
+            backend_logs,
             probe_weights,
             open_path,
             reveal_path,
             open_url,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Forge3D");
+        .build(tauri::generate_context!())
+        .expect("error while building Forge3D");
+
+    app.run(|handle, event| {
+        if let RunEvent::Exit = event {
+            let state = handle.state::<AppState>();
+            backend::kill_now(&state.backend);
+        }
+    });
 }
