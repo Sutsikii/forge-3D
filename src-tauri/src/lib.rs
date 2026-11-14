@@ -162,12 +162,29 @@ fn open_url(url: String) -> CmdResult<()> {
     tauri_plugin_opener::open_url(&url, None::<&str>).map_err(err)
 }
 
+/// `forge3d --install [--force] [--only uv,python,...]` installs the runtime
+/// without UI and exits (unattended setup, CI, debugging the installer).
+fn headless_args() -> Option<(bool, Option<Vec<String>>)> {
+    let args: Vec<String> = std::env::args().collect();
+    if !args.iter().any(|a| a == "--install") {
+        return None;
+    }
+    let force = args.iter().any(|a| a == "--force");
+    let only = args
+        .iter()
+        .position(|a| a == "--only")
+        .and_then(|i| args.get(i + 1))
+        .map(|v| v.split(',').map(|s| s.trim().to_string()).collect());
+    Some((force, only))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let headless = headless_args();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
+        .setup(move |app| {
             let handle = app.handle().clone();
             let settings = Settings::load(&handle);
             app.manage(AppState {
@@ -175,6 +192,25 @@ pub fn run() {
                 runtime: Arc::new(runtime::RuntimeCtl::default()),
                 backend: backend::BackendCtl::default(),
             });
+            if let Some((force, only)) = headless.clone() {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.hide();
+                }
+                std::env::set_var("FORGE3D_HEADLESS", "1");
+                let ctl = app.state::<AppState>().runtime.clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut installer = runtime::Installer::new(handle.clone(), settings, ctl);
+                    let code = match installer.install(force, only).await {
+                        Ok(()) => 0,
+                        Err(e) => {
+                            eprintln!("install failed: {e:#}");
+                            1
+                        }
+                    };
+                    handle.exit(code);
+                });
+                return Ok(());
+            }
             let st = runtime::load_state(&settings);
             if settings.auto_start && runtime::is_ready(&settings, &st) {
                 tauri::async_runtime::spawn(async move {
