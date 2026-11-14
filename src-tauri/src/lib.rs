@@ -1,16 +1,19 @@
 mod backend;
+mod runtime;
 mod settings;
 mod system;
 mod util;
 
 use std::path::PathBuf;
-use std::sync::Mutex;
-use tauri::{AppHandle, Manager, RunEvent, State};
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
 use settings::Settings;
 
 pub struct AppState {
     pub settings: Mutex<Settings>,
+    pub runtime: Arc<runtime::RuntimeCtl>,
     pub backend: backend::BackendCtl,
 }
 
@@ -45,6 +48,47 @@ async fn system_info(state: State<'_, AppState>) -> CmdResult<system::SystemInfo
     tauri::async_runtime::spawn_blocking(move || system::info(&runtime_dir))
         .await
         .map_err(err)
+}
+
+#[tauri::command]
+fn runtime_status(state: State<'_, AppState>) -> runtime::RuntimeStatus {
+    runtime::status(&state.settings(), &state.runtime)
+}
+
+#[tauri::command]
+fn runtime_logs(state: State<'_, AppState>) -> Vec<String> {
+    state.runtime.logs.lock().map(|l| l.iter().cloned().collect()).unwrap_or_default()
+}
+
+#[tauri::command]
+fn runtime_install(app: AppHandle, state: State<'_, AppState>, force: bool, only: Option<Vec<String>>) -> CmdResult<()> {
+    let ctl = state.runtime.clone();
+    if ctl.installing.swap(true, Ordering::SeqCst) {
+        return Err("Une installation est déjà en cours".into());
+    }
+    ctl.cancel.store(false, Ordering::SeqCst);
+    let s = state.settings();
+    tauri::async_runtime::spawn(async move {
+        // Python must not hold files we are about to replace.
+        if only.is_none() || force {
+            let st = app.state::<AppState>();
+            let _ = backend::stop(&app, &st.backend).await;
+        }
+        let mut installer = runtime::Installer::new(app.clone(), s, ctl.clone());
+        let result = installer.install(force, only).await;
+        ctl.installing.store(false, Ordering::SeqCst);
+        let payload = match &result {
+            Ok(()) => serde_json::json!({"ok": true}),
+            Err(e) => serde_json::json!({"ok": false, "error": format!("{e:#}")}),
+        };
+        let _ = app.emit("runtime://finished", payload);
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn runtime_cancel(state: State<'_, AppState>) {
+    state.runtime.cancel.store(true, Ordering::SeqCst);
 }
 
 #[tauri::command]
@@ -124,17 +168,32 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let settings = Settings::load(app.handle());
+            let handle = app.handle().clone();
+            let settings = Settings::load(&handle);
             app.manage(AppState {
-                settings: Mutex::new(settings),
+                settings: Mutex::new(settings.clone()),
+                runtime: Arc::new(runtime::RuntimeCtl::default()),
                 backend: backend::BackendCtl::default(),
             });
+            let st = runtime::load_state(&settings);
+            if settings.auto_start && runtime::is_ready(&settings, &st) {
+                tauri::async_runtime::spawn(async move {
+                    let state = handle.state::<AppState>();
+                    if let Err(e) = backend::start(&handle, &state.backend, &settings).await {
+                        eprintln!("backend autostart failed: {e:#}");
+                    }
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_settings,
             save_settings,
             system_info,
+            runtime_status,
+            runtime_logs,
+            runtime_install,
+            runtime_cancel,
             backend_start,
             backend_stop,
             backend_restart,
@@ -151,6 +210,7 @@ pub fn run() {
     app.run(|handle, event| {
         if let RunEvent::Exit = event {
             let state = handle.state::<AppState>();
+            state.runtime.cancel.store(true, Ordering::SeqCst);
             backend::kill_now(&state.backend);
         }
     });
