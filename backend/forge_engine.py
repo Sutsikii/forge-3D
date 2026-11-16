@@ -263,6 +263,7 @@ class Engine:
             self.paint.render = MeshRender(default_resolution=render_size, texture_size=texture_size,
                                            bake_mode=cfg.bake_mode, raster_mode=cfg.raster_mode)
             self.paint.view_processor = ViewProcessor(cfg, self.paint.render)
+            self._instrument_paint()
             self.paint_key = key
             return
 
@@ -300,10 +301,54 @@ class Engine:
                 print("[forge] paint: model CPU offload enabled")
             except Exception as exc:
                 print(f"[forge] paint offload failed: {exc}")
+        self._instrument_paint()
         self.paint_key = key
         self.loaded_at["paint"] = time.time()
         patch_tqdm()
         print(f"[forge] paint pipeline ready in {time.time() - t0:.1f}s")
+
+    def _instrument_paint(self) -> None:
+        """Report each paint phase to the running job and allow cancelling
+        between phases (most of them have no inner progress loop)."""
+        import textureGenPipeline as tgp
+
+        from forge_progress import check_cancel, get_job
+
+        def wrap(fn, label: str, frac: float):
+            def inner(*args, **kwargs):
+                check_cancel()
+                job = get_job()
+                if job is not None:
+                    job.step(label)
+                    job.stage_frac = max(job.stage_frac, frac)
+                return fn(*args, **kwargs)
+
+            inner._forge_wrapped = True
+            return inner
+
+        def patch(obj, name: str, label: str, frac: float) -> None:
+            is_dict = isinstance(obj, dict)
+            fn = obj[name] if is_dict else getattr(obj, name)
+            if getattr(fn, "_forge_wrapped", False):
+                return
+            if is_dict:
+                obj[name] = wrap(fn, label, frac)
+            else:
+                setattr(obj, name, wrap(fn, label, frac))
+
+        vp = self.paint.view_processor
+        for obj, name, label, frac in (
+            (tgp, "remesh_mesh", "Remaillage", 0.02),
+            (tgp, "mesh_uv_wrap", "Dépliage UV", 0.06),
+            (vp, "render_normal_multiview", "Rendu des normales", 0.12),
+            (vp, "render_position_multiview", "Rendu des positions", 0.14),
+            (self.paint.models, "multiview_model", "Diffusion multi-vues", 0.16),
+            (self.paint.models, "super_model", "Super-résolution", 0.72),
+            (vp, "bake_from_multiview", "Projection sur les UV", 0.86),
+            (vp, "texture_inpaint", "Remplissage des zones cachées", 0.93),
+            (self.paint.render, "save_mesh", "Export du maillage", 0.97),
+        ):
+            patch(obj, name, label, frac)
 
     def paint_mesh(self, mesh_path: str, image: Image.Image, out_dir: str, p: dict) -> str:
         self.load_paint(p)

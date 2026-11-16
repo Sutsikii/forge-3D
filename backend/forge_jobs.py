@@ -29,6 +29,8 @@ STAGE_WEIGHTS = {"t2i": 8, "prepare": 3, "shape": 45, "post": 4, "texture": 45, 
 # Inner tqdm loops -> slice of their stage.
 SUBSTEP_RANGES = {
     "shape": {"Diffusion": (0.0, 0.75), "Volume": (0.75, 1.0), "FlashVDM": (0.75, 1.0)},
+    # The paint pipeline's only inner loop is the multiview denoising.
+    "texture": {"": (0.16, 0.70)},
 }
 
 
@@ -48,6 +50,7 @@ class Job:
         self.stage_index = -1
         self.stage_frac = 0.0
         self.detail = ""
+        self._step_label = ""
         self.error: Optional[str] = None
         self.warning: Optional[str] = None
         self.cancel_requested = False
@@ -81,6 +84,7 @@ class Job:
 
     def step(self, detail: str) -> None:
         self.detail = detail
+        self._step_label = detail
 
     def on_substep(self, desc: str, n: float, total: Optional[float]) -> None:
         if not total:
@@ -92,7 +96,7 @@ class Job:
                 lo, hi = rng
                 break
         self.stage_frac = lo + (hi - lo) * frac
-        label = desc or "Étape"
+        label = desc or self._step_label or "Étape"
         self.detail = f"{label} {int(n)}/{int(total)}"
 
     @property
