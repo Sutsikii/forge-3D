@@ -48,6 +48,23 @@ def main() -> None:
         except Exception as exc:
             report["imports"][name] = False
             report["errors"][name] = "".join(traceback.format_exception_only(type(exc), exc)).strip()[:400]
+    # Importing is not enough: a binary built against the wrong tensor types
+    # imports fine and only fails when it rasterizes. Run one triangle.
+    try:
+        import torch
+        import custom_rasterizer as cr
+
+        pos = torch.tensor([[[-0.5, -0.5, 0.5, 1.0], [0.5, -0.5, 0.5, 1.0], [0.0, 0.5, 0.5, 1.0]]],
+                           device="cuda", dtype=torch.float32)
+        tri = torch.tensor([[0, 1, 2]], device="cuda", dtype=torch.int32)
+        findices, _bary = cr.rasterize(pos, tri, (64, 64))
+        torch.cuda.synchronize()
+        if int((findices > 0).sum()) == 0:
+            raise RuntimeError("le triangle de test n'a couvert aucun pixel")
+        report["imports"]["rasterizer_run"] = True
+    except Exception as exc:
+        report["imports"]["rasterizer_run"] = False
+        report["errors"]["rasterizer_run"] = "".join(traceback.format_exception_only(type(exc), exc)).strip()[:400]
     report["native"] = native_status()
     print("FORGE3D_VERIFY=" + json.dumps(report), flush=True)
 

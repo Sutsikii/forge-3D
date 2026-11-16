@@ -505,7 +505,7 @@ impl Installer {
             bail!("import hy3dshape impossible : {err}");
         }
         let flag = |p: &str| value.pointer(p).and_then(|v| v.as_bool()).unwrap_or(false);
-        let paint_ok = flag("/imports/paint") && flag("/imports/rasterizer") && flag("/imports/inpaint");
+        let paint_ok = flag("/imports/paint") && flag("/imports/rasterizer_run") && flag("/imports/inpaint");
         Ok(format!(
             "torch {} · CUDA {} · texture {}",
             value.get("torch").and_then(|v| v.as_str()).unwrap_or("?"),
