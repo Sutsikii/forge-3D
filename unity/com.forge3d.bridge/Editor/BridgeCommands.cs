@@ -28,6 +28,7 @@ namespace Forge3D.Bridge
                 case "create": return Create(a);
                 case "transform": return Transform(a);
                 case "delete": return Delete(a);
+                case "set_active": return SetActive(a);
                 case "screenshot": return Screenshot(a);
                 case "save_scene": return SaveScene();
                 case "install_gltf": return InstallGltf();
@@ -242,6 +243,15 @@ namespace Forge3D.Bridge
             Undo.DestroyObjectImmediate(go);
             EditorSceneManager.MarkSceneDirty(scene);
             return new Dictionary<string, object> { ["ok"] = true };
+        }
+
+        static object SetActive(Dictionary<string, object> a)
+        {
+            var go = Find(Str(a, "path"));
+            Undo.RecordObject(go, "Forge3D set active");
+            go.SetActive(Bool(a, "active", true));
+            EditorSceneManager.MarkSceneDirty(go.scene);
+            return new Dictionary<string, object> { ["ok"] = true, ["object"] = Describe(go, 0) };
         }
 
         static void ApplyTransform(UnityEngine.Transform t, Dictionary<string, object> a)

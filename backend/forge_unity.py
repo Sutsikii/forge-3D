@@ -155,6 +155,12 @@ def t_delete(a: dict) -> dict:
     return call("delete", a)
 
 
+@tool("unity_set_active", "Show or hide a scene object (and its children) by hierarchy path. Undoable.",
+      {"path": {"type": "string"}, "active": {"type": "boolean"}}, ["path", "active"])
+def t_set_active(a: dict) -> dict:
+    return call("set_active", a)
+
+
 @tool(
     "unity_screenshot",
     "Render the Unity Scene view (default) or the Game camera to an image, to check the result visually. "
