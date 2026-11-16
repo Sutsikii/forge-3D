@@ -12,6 +12,19 @@ import os
 import sys
 
 
+def _patch_uint64(path: str) -> None:
+    """Upstream reads the kInt64 z-buffer with data_ptr<uint64_t>(); since
+    torch 2.3 UInt64 is a distinct dtype and that call throws at runtime.
+    Read it as int64 and keep the uint64_t* cast the kernels expect."""
+    with open(path, "r", encoding="utf-8") as f:
+        code = f.read()
+    fixed = code.replace("data_ptr<uint64_t>()", "data_ptr<int64_t>()")
+    if fixed != code:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(fixed)
+        print(f"patched uint64 z-buffer access in {path}")
+
+
 def build_rasterizer(repo: str) -> None:
     from setuptools import setup
     from torch.utils.cpp_extension import BuildExtension, CUDAExtension
@@ -20,6 +33,7 @@ def build_rasterizer(repo: str) -> None:
     os.chdir(root)
     # Upstream ships Windows-safe sources (int64_t instead of unsigned long long).
     src = "lib/custom_rasterizer_kernel_for_windows" if os.name == "nt" else "lib/custom_rasterizer_kernel"
+    _patch_uint64(os.path.join(src, "rasterizer_gpu.cu"))
     ext = CUDAExtension(
         "custom_rasterizer_kernel",
         [f"{src}/rasterizer.cpp", f"{src}/grid_neighbor.cpp", f"{src}/rasterizer_gpu.cu"],
