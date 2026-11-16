@@ -24,6 +24,7 @@ from forge_engine import ENGINE, capabilities, gpu_info, setup_paths  # noqa: E4
 from forge_jobs import JOBS  # noqa: E402
 from forge_submit import JobError, submit as submit_job  # noqa: E402
 from forge_mcp import router as mcp_router  # noqa: E402
+import forge_unity  # noqa: E402,F401 - registers the unity_* MCP tools
 
 app = FastAPI(title="Forge3D API", version=VERSION)
 app.add_middleware(
