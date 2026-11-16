@@ -20,6 +20,28 @@ npx tauri build            # installeur NSIS
 forge3d.exe --install [--force] [--only uv,python,code,torch,deps,native,verify]   # install sans UI
 ```
 
+## MCP et Unity
+
+Le moteur expose un serveur **MCP** (transport HTTP) sur `http://127.0.0.1:47823/mcp` : un assistant
+compatible peut générer des modèles, suivre la file, parcourir la bibliothèque et les placer dans Unity.
+
+```json
+{ "mcpServers": { "forge3d": { "type": "http", "url": "http://127.0.0.1:47823/mcp" } } }
+```
+
+Outils : `forge_status`, `forge_generate`, `forge_texture`, `forge_job`, `forge_cancel`, `forge_library`,
+`forge_item`, `forge_export`, `unity_status`, `unity_scene`, `unity_import`, `unity_create`,
+`unity_transform`, `unity_delete`, `unity_screenshot`, `unity_save_scene`.
+
+Côté Unity (2022.3+), installe le pont via Package Manager → *Add package from git URL* :
+
+```
+https://github.com/Sutsikii/forge-3D.git?path=/unity/com.forge3d.bridge
+```
+
+Il écoute sur `127.0.0.1:47824` dès l'ouverture de l'éditeur et installe glTFast au premier import GLB.
+La bibliothèque de l'app propose aussi un bouton **Unity** pour envoyer un modèle dans la scène ouverte.
+
 ## Texture PBR : prérequis
 
 `custom_rasterizer` (CUDA) se compile avec le CUDA Toolkit 12.x + MSVC.
