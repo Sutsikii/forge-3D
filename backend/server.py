@@ -100,6 +100,16 @@ def unity_status() -> dict:
         return {"connected": False, "error": str(exc)[:300]}
 
 
+@app.post("/library/{item_id}/unity")
+def library_to_unity(item_id: str, body: dict = Body(default={})) -> dict:
+    from forge_mcp import ToolError
+
+    try:
+        return forge_unity.t_import({"item_id": item_id, "variant": body.get("variant", "textured")})
+    except ToolError as exc:
+        raise HTTPException(409, str(exc))
+
+
 # ------------------------------------------------------------------ models
 @app.get("/models")
 def list_models() -> list:

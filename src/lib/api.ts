@@ -204,6 +204,8 @@ export const api = {
   deleteItem: (id: string) => req<unknown>(`/library/${id}`, { method: "DELETE" }),
   saveThumbnail: (id: string, png: Blob) =>
     req<LibraryItem>(`/library/${id}/thumbnail`, { method: "POST", body: png, headers: { "Content-Type": "image/png" } }),
+  sendToUnity: (id: string, variant: string) =>
+    req<{ asset: string; instance?: string }>(`/library/${id}/unity`, { ...json("POST", { variant }), timeout: 300000 }),
   exportItem: (id: string, variant: string, format: string, max_faces = 0) =>
     req<{ path: string }>(`/library/${id}/export`, { ...json("POST", { variant, format, max_faces }), timeout: 300000 }),
 };

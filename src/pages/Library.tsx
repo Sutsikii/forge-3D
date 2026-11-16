@@ -110,6 +110,7 @@ function Detail({ item, onDeleted }: { item: LibraryItem; onDeleted: () => void 
   const [fmt, setFmt] = useState("glb");
   const [maxFaces, setMaxFaces] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [sending, setSending] = useState(false);
   const viewer = useRef<ViewerHandle>(null);
   const onLoaded = useThumbnail(item, viewer);
   const shapeUrl = fileUrl(item, "shape");
@@ -148,6 +149,18 @@ function Detail({ item, onDeleted }: { item: LibraryItem; onDeleted: () => void 
       toast(errorText(e), "error");
     } finally {
       setExporting(false);
+    }
+  };
+
+  const toUnity = async () => {
+    setSending(true);
+    try {
+      const r = await api.sendToUnity(item.id, variant);
+      toast(`Ajouté dans Unity : ${r.asset}`, "success");
+    } catch (e) {
+      toast(errorText(e), "error");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -238,6 +251,9 @@ function Detail({ item, onDeleted }: { item: LibraryItem; onDeleted: () => void 
               <Icon.external size={15} /> Ouvrir
             </button>
           )}
+          <button className="btn" disabled={sending || !item.available[variant]} title="Importer dans la scène Unity ouverte" onClick={toUnity}>
+            <Icon.cube size={15} /> {sending ? "Envoi…" : "Unity"}
+          </button>
           <button className="btn danger" onClick={remove}>
             <Icon.trash size={15} />
           </button>
