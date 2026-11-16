@@ -31,6 +31,7 @@ namespace Forge3D.Bridge
                 case "set_active": return SetActive(a);
                 case "screenshot": return Screenshot(a);
                 case "save_scene": return SaveScene();
+                case "open_scene": return OpenScene(a);
                 case "install_gltf": return InstallGltf();
                 default: throw new BridgeError(404, $"Unknown command '{command}'");
             }
@@ -325,6 +326,21 @@ namespace Forge3D.Bridge
                 throw new BridgeError(409, "The scene has never been saved; save it once from Unity first");
             var ok = EditorSceneManager.SaveScene(scene);
             return new Dictionary<string, object> { ["ok"] = ok, ["scene"] = scene.path };
+        }
+
+        static object OpenScene(Dictionary<string, object> a)
+        {
+            var path = Str(a, "path");
+            if (string.IsNullOrEmpty(path) || AssetDatabase.LoadAssetAtPath<SceneAsset>(path) == null)
+            {
+                var scenes = AssetDatabase.FindAssets("t:Scene", new[] { "Assets" }).Select(AssetDatabase.GUIDToAssetPath).ToList();
+                throw new BridgeError(404, $"Scene not found: {path}. Available: {string.Join(", ", scenes)}");
+            }
+            var current = SceneManager.GetActiveScene();
+            if (current.isDirty && !Bool(a, "discard_changes", false))
+                throw new BridgeError(409, $"The open scene '{current.name}' has unsaved changes; save it or pass discard_changes");
+            var scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+            return new Dictionary<string, object> { ["ok"] = true, ["scene"] = scene.path };
         }
 
         // ----------------------------------------------------------- helpers

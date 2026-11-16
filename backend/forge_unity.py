@@ -176,6 +176,17 @@ def t_screenshot(a: dict) -> list:
             {"type": "text", "text": f"{r['width']}x{r['height']} {a.get('view', 'scene')} view"}]
 
 
+@tool(
+    "unity_open_scene",
+    "Open a scene of the Unity project (e.g. Assets/Scenes/Main.unity). Refuses if the current scene has "
+    "unsaved changes unless discard_changes=true. An unknown path lists the available scenes.",
+    {"path": {"type": "string"}, "discard_changes": {"type": "boolean", "default": False}},
+    ["path"],
+)
+def t_open_scene(a: dict) -> dict:
+    return call("open_scene", a)
+
+
 @tool("unity_save_scene", "Save the open Unity scene.")
 def t_save(_: dict) -> dict:
     return call("save_scene")
