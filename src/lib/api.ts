@@ -131,6 +131,17 @@ export class ApiError extends Error {
   }
 }
 
+export interface UnityStatus {
+  connected: boolean;
+  error?: string;
+  unity?: string;
+  product?: string;
+  project?: string;
+  scene_name?: string;
+  gltf?: boolean;
+  render_pipeline?: string;
+}
+
 let BASE = "http://127.0.0.1:47823";
 export function setApiPort(port: number) {
   BASE = `http://127.0.0.1:${port}`;
@@ -171,6 +182,7 @@ export const api = {
   system: () => req<SystemLive>("/system"),
   setConfig: (values: Record<string, unknown>) => req<{ changed: string[] }>("/config", json("POST", values)),
   unload: () => req<{ loaded: string[] }>("/unload", { method: "POST" }),
+  unityStatus: () => req<UnityStatus>("/integrations/unity", { timeout: 5000 }),
 
   models: () => req<ModelInfo[]>("/models"),
   downloadModel: (id: string) => req<unknown>(`/models/${id}/download`, { method: "POST" }),

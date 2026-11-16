@@ -139,6 +139,8 @@ textarea.input { resize: vertical; min-height: 80px; }
 .note { margin: 0; font-size: 12px; color: var(--text-3); display: flex; gap: 6px; align-items: flex-start; }
 .note.warn { color: var(--warn); }
 .note svg { flex: none; margin-top: 2px; }
+.note.block { display: block; line-height: 1.55; }
+.code-block { margin: 0; padding: 10px 12px; font-family: var(--mono); font-size: 12px; background: var(--bg-3); border-radius: 8px; white-space: pre; overflow-x: auto; user-select: text; }
 .lede { margin: 0; color: var(--text-2); }
 
 .section { display: flex; flex-direction: column; gap: 12px; }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { api, apiBase, type SystemLive } from "../lib/api";
+import { api, apiBase, type SystemLive, type UnityStatus } from "../lib/api";
 import { tauri, type Settings, type VramProfile } from "../lib/tauri";
 import { bytes, errorText } from "../lib/format";
 import { toast, useStore } from "../lib/store";
@@ -23,6 +23,7 @@ export function SettingsPage() {
   const [draft, setDraft] = useState<Settings>(settings);
   const [live, setLive] = useState<SystemLive | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const [unity, setUnity] = useState<UnityStatus | null>(null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
 
   useEffect(() => setDraft(settings), [settings]);
@@ -31,7 +32,10 @@ export function SettingsPage() {
     const tick = async () => {
       const installing = useStore.getState().runtime?.installing;
       setLogs(await (installing ? tauri.runtimeLogs() : tauri.backendLogs()).catch(() => []));
-      if (useStore.getState().health) setLive(await api.system().catch(() => null));
+      if (useStore.getState().health) {
+        setLive(await api.system().catch(() => null));
+        setUnity(await api.unityStatus().catch(() => null));
+      }
     };
     tick();
     const t = setInterval(() => alive && tick(), 2500);
@@ -63,6 +67,13 @@ export function SettingsPage() {
     }
   };
 
+  const copy = (text: string, what: string) =>
+    navigator.clipboard.writeText(text).then(
+      () => toast(`${what} copié`, "success"),
+      () => toast("Copie impossible", "error"),
+    );
+  const mcpUrl = `${apiBase()}/mcp`;
+  const mcpConfig = JSON.stringify({ mcpServers: { forge3d: { type: "http", url: mcpUrl } } }, null, 2);
   const gpu = live?.gpu;
   return (
     <div className="page settings">
@@ -214,6 +225,46 @@ export function SettingsPage() {
             </button>
           </div>
           <Toggle checked={draft.autoStart} onChange={(v) => upd("autoStart", v)} label="Démarrer le moteur avec l'app" />
+        </Section>
+
+        <Section title="Intégrations">
+          <div className="kv">
+            <span>Serveur MCP</span>
+            <strong className="mono">{mcpUrl}</strong>
+          </div>
+          <p className="note block">
+            Un assistant compatible MCP (transport HTTP) peut piloter Forge3D : générer, suivre la file, parcourir la bibliothèque et envoyer les modèles
+            dans Unity. Ajoute cette configuration à ton client :
+          </p>
+          <pre className="code-block">{mcpConfig}</pre>
+          <div className="row wrap">
+            <button className="btn sm" onClick={() => copy(mcpUrl, "URL")}>
+              Copier l'URL
+            </button>
+            <button className="btn ghost sm" onClick={() => copy(mcpConfig, "Configuration")}>
+              Copier la configuration
+            </button>
+          </div>
+          <div className="kv">
+            <span>Unity</span>
+            <strong>
+              {unity?.connected ? (
+                <>
+                  <Badge tone="ok">connecté</Badge> {unity.product} · {unity.unity}
+                  {unity.scene_name ? ` · ${unity.scene_name}` : ""}
+                  {!unity.gltf && " · glTFast s'installera au premier import"}
+                </>
+              ) : (
+                <Badge tone="neutral">non détecté</Badge>
+              )}
+            </strong>
+          </div>
+          {!unity?.connected && (
+            <p className="note block">
+              Dans Unity : Package Manager → <em>Add package from git URL</em> →{" "}
+              <code>https://github.com/Sutsikii/forge-3D.git?path=/unity/com.forge3d.bridge</code>. Le pont démarre avec l'éditeur.
+            </p>
+          )}
         </Section>
 
         <Section title="Journal du moteur">

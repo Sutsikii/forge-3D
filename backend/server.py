@@ -91,6 +91,15 @@ def unload() -> dict:
     return {"loaded": ENGINE.loaded(), "gpu": gpu_info()}
 
 
+# ------------------------------------------------------------------ integrations
+@app.get("/integrations/unity")
+def unity_status() -> dict:
+    try:
+        return {"connected": True, **forge_unity.call("status", timeout=3)}
+    except Exception as exc:  # noqa: BLE001 - bridge simply not running
+        return {"connected": False, "error": str(exc)[:300]}
+
+
 # ------------------------------------------------------------------ models
 @app.get("/models")
 def list_models() -> list:
