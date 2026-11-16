@@ -269,6 +269,7 @@ namespace Forge3D.Bridge
             var w = Mathf.Clamp((int)Num(a, "width", 960), 64, 2048);
             var h = Mathf.Clamp((int)Num(a, "height", 540), 64, 2048);
             Camera cam;
+            GameObject temp = null;
             if (Str(a, "view") == "game")
             {
                 cam = Camera.main ?? Object.FindObjectsByType<Camera>(FindObjectsSortMode.None).FirstOrDefault();
@@ -284,8 +285,21 @@ namespace Forge3D.Bridge
                     var b = BoundsOf(Find(focus));
                     if (b.HasValue) sv.Frame(b.Value, true);
                 }
+                // The Scene view camera only moves on its next repaint; render from a
+                // temporary camera placed where the view is looking right now.
+                temp = new GameObject("Forge3D Capture") { hideFlags = HideFlags.HideAndDontSave };
+                cam = temp.AddComponent<Camera>();
+                cam.CopyFrom(sv.camera);
+                cam.transform.rotation = sv.rotation;
+                cam.transform.position = sv.pivot - sv.rotation * Vector3.forward * sv.cameraDistance;
+                cam.fieldOfView = sv.cameraSettings.fieldOfView;
+                cam.orthographic = sv.orthographic;
+                cam.orthographicSize = sv.size;
+                cam.nearClipPlane = Mathf.Max(0.01f, sv.cameraDistance * 0.01f);
+                cam.farClipPlane = Mathf.Max(1000f, sv.cameraDistance * 10f);
+                cam.clearFlags = CameraClearFlags.Skybox;
+                cam.cameraType = CameraType.Game;
                 sv.Repaint();
-                cam = sv.camera;
             }
 
             var rt = RenderTexture.GetTemporary(w, h, 24, RenderTextureFormat.ARGB32);
@@ -316,6 +330,7 @@ namespace Forge3D.Bridge
                 RenderTexture.active = prevActive;
                 RenderTexture.ReleaseTemporary(rt);
                 Object.DestroyImmediate(tex);
+                if (temp != null) Object.DestroyImmediate(temp);
             }
         }
 
