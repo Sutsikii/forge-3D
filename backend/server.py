@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import sys
 import time
 
@@ -22,7 +21,8 @@ import forge_library as lib  # noqa: E402
 import forge_models as models  # noqa: E402
 from forge_config import CONFIG, VERSION  # noqa: E402
 from forge_engine import ENGINE, capabilities, gpu_info, setup_paths  # noqa: E402
-from forge_jobs import JOBS, Job  # noqa: E402
+from forge_jobs import JOBS  # noqa: E402
+from forge_submit import JobError, submit as submit_job  # noqa: E402
 
 app = FastAPI(title="Forge3D API", version=VERSION)
 app.add_middleware(
@@ -38,8 +38,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 STARTED = time.time()
-IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
-MESH_EXT = {".glb", ".gltf", ".obj", ".ply", ".stl", ".off"}
 
 
 @app.get("/health")
@@ -105,17 +103,6 @@ def download_model(model_id: str) -> dict:
 
 
 # ------------------------------------------------------------------ jobs
-def _save_upload(upload: UploadFile, dest_dir: str, stem: str, allowed: set[str]) -> str:
-    ext = os.path.splitext(upload.filename or "")[1].lower()
-    if ext not in allowed:
-        raise HTTPException(400, f"Extension non supportée: {ext or '(aucune)'}")
-    os.makedirs(dest_dir, exist_ok=True)
-    path = os.path.join(dest_dir, stem + ext)
-    with open(path, "wb") as f:
-        shutil.copyfileobj(upload.file, f)
-    return path
-
-
 @app.post("/jobs")
 def create_job(spec: str = Form(...), image: UploadFile | None = File(None),
                mesh: UploadFile | None = File(None)) -> dict:
@@ -123,54 +110,12 @@ def create_job(spec: str = Form(...), image: UploadFile | None = File(None),
         data = json.loads(spec)
     except ValueError:
         raise HTTPException(400, "spec JSON invalide")
-    kind = data.get("kind")
-    if kind not in ("image", "text", "texture"):
-        raise HTTPException(400, "kind doit valoir image, text ou texture")
-    params = data.get("params") or {}
-    caps = capabilities()
-    if kind in ("image", "text") and not caps["shape"]:
-        raise HTTPException(409, "Modèle de forme non installé (onglet Modèles)")
-    wants_texture = kind == "texture" or params.get("texture", {}).get("enabled")
-    if wants_texture and not caps["paint"]:
-        raise HTTPException(409, "Texture indisponible : " + ", ".join(caps["paint_missing"]))
-    if kind == "text" and not (params.get("prompt") or "").strip():
-        raise HTTPException(400, "Prompt vide")
-    if kind == "texture":
-        params.setdefault("texture", {})["enabled"] = True
-
-    job = Job(kind, params, {}, name=(data.get("name") or "").strip()[:120])
-    d = lib.item_dir(job.item_id)
-    target = params.get("target_item")
-    if target:
-        meta = lib.read_meta(target)
-        if meta is None:
-            raise HTTPException(404, "Élément cible introuvable")
-        job.name = job.name or meta.get("name", "")
-        if image is None and meta["files"].get("input"):
-            job.inputs["image"] = os.path.join(d, meta["files"]["input"])
-        if mesh is None and meta["files"].get("shape"):
-            job.inputs["mesh"] = os.path.join(d, meta["files"]["shape"])
-    if image is not None:
-        job.inputs["image"] = _save_upload(image, d, "source", IMAGE_EXT)
-        job.name = job.name or os.path.splitext(image.filename or "image")[0]
-    if mesh is not None:
-        job.inputs["mesh"] = _save_upload(mesh, d, "uploaded_mesh", MESH_EXT)
-        job.name = job.name or os.path.splitext(mesh.filename or "maillage")[0]
-    if kind == "text":
-        job.name = job.name or params["prompt"].strip()[:60]
-    if kind in ("image", "texture") and "image" not in job.inputs:
-        raise HTTPException(400, "Image de référence manquante")
-    if kind == "texture" and "mesh" not in job.inputs:
-        raise HTTPException(400, "Maillage manquant")
-    if kind == "texture" and job.inputs["mesh"].lower().endswith((".obj", ".ply", ".stl", ".off", ".gltf")):
-        # The paint pipeline expects a single mesh; normalise uploads to GLB.
-        import trimesh
-
-        loaded = trimesh.load(job.inputs["mesh"], force="mesh")
-        glb = os.path.join(d, "shape.glb")
-        loaded.export(glb)
-        job.inputs["mesh"] = glb
-    JOBS.submit(job)
+    try:
+        job = submit_job(data,
+                         (image.filename or "", image.file) if image is not None else None,
+                         (mesh.filename or "", mesh.file) if mesh is not None else None)
+    except JobError as exc:
+        raise HTTPException(exc.status, exc.message)
     return job.to_dict()
 
 
