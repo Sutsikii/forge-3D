@@ -40,6 +40,9 @@ def call(command: str, args: dict | None = None, timeout: float = 200) -> dict:
         raise ToolError(f"Unity: {data.get('error', exc)}")
     except (urllib.error.URLError, ConnectionError, TimeoutError) as exc:
         raise ToolError(NOT_RUNNING.format(url=UNITY_URL) + f" ({exc})")
+    except (ValueError, OSError) as exc:
+        # Empty or cut-off answer: the editor reloaded its scripts mid-request.
+        raise ToolError(f"Unity bridge interrupted (scripts reloading?), retry: {exc}")
 
 
 def _wait_ready(seconds: float) -> None:
