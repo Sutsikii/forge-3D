@@ -114,6 +114,24 @@ def has_real_alpha(img: Image.Image) -> bool:
     return lo < 250
 
 
+class _GpuOnCall:
+    """Keep a module in RAM and move it to the GPU only for each call."""
+
+    def __init__(self, module) -> None:
+        self.module = module
+
+    def __call__(self, *args, **kwargs):
+        self.module.to("cuda")
+        try:
+            return self.module(*args, **kwargs)
+        finally:
+            self.module.to("cpu")
+            _free_cuda()
+
+    def __getattr__(self, name):
+        return getattr(self.module, name)
+
+
 class Engine:
     def __init__(self) -> None:
         self.shape = None
@@ -287,7 +305,13 @@ class Engine:
         conf.texture_size = texture_size
         t0 = time.time()
         self.paint = Hunyuan3DPaintPipeline(conf)
-        mv = self.paint.models["multiview_model"].pipeline
+        mvnet = self.paint.models["multiview_model"]
+        mv = mvnet.pipeline
+        if not CONFIG.profile_defaults["keep_loaded"] and getattr(mvnet, "dino_v2", None) is not None:
+            # DINOv2-giant (~2.2 GB fp16) only encodes the reference image once
+            # per job: park it in RAM so the multiview UNet gets that VRAM.
+            mvnet.dino_v2 = _GpuOnCall(mvnet.dino_v2.to("cpu"))
+            _free_cuda()
         # The pipeline decodes every view (albedo + MR) in one VAE batch; on
         # 12-16 GB cards that overflows into shared memory and crawls.
         # Slicing decodes one image at a time for the same result.
