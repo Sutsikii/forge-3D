@@ -60,12 +60,11 @@ export function Setup() {
     },
     { label: "Espace disque", ok: system?.diskFreeGb != null ? system.diskFreeGb > 40 : null, value: system?.diskFreeGb != null ? `${system.diskFreeGb.toFixed(0)} Go libres` : "–", hint: "~15 Go runtime + ~26 Go modèles" },
     { label: "uv", ok: true, value: system?.uv ? "trouvé" : "sera téléchargé" },
-    { label: "Visual Studio C++", ok: system ? !!system.vcvars : null, value: system?.vcvars ? "OK" : "absent — requis pour la texture", hint: "Build Tools « Desktop C++ »" },
     {
-      label: "CUDA Toolkit 12.x",
-      ok: system ? !!system.cudaToolkit : null,
-      value: system?.cudaToolkit ? system.cudaToolkit.version : "absent — requis pour la texture",
-      hint: "winget install Nvidia.CUDA --version 12.4",
+      label: "Extensions texture",
+      ok: true,
+      value: "binaires précompilés téléchargés automatiquement",
+      hint: system?.cudaToolkit && system?.vcvars ? "compilation locale possible en secours" : undefined,
     },
   ];
 
@@ -95,7 +94,7 @@ export function Setup() {
               </li>
             ))}
           </ul>
-          <p className="note">Sans CUDA Toolkit / MSVC, la génération de forme fonctionne ; seule la texture PBR attendra la compilation des extensions (faisable plus tard depuis les Réglages).</p>
+          <p className="note">Aucun outil à installer : Python, PyTorch CUDA et les extensions natives sont récupérés automatiquement dans un dossier isolé.</p>
         </div>
 
         <div className="card-box">

@@ -25,6 +25,10 @@ pub const PYTHON_VERSION: &str = "3.10";
 pub const TORCH_PINS: [&str; 2] = ["torch==2.5.1", "torchvision==0.20.1"];
 /// Upstream commit the backend was written against.
 pub const HUNYUAN_COMMIT: &str = "82920d643c0dc2f7bfd7255f45f62d386edfe60c";
+/// Prebuilt native extensions for the pinned runtime (Python 3.10, torch 2.5.1,
+/// CUDA 12.4, win-x64), so users need neither the CUDA Toolkit nor MSVC.
+const NATIVE_PREBUILT_URL: &str =
+    "https://github.com/Sutsikii/forge-3D/releases/download/native-v1/forge3d-native-win64-py310-torch251-cu124.zip";
 const UV_URL: &str = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip";
 /// Requirements we never install: training-only, demo-only, or replaced by us.
 const SKIP_PACKAGES: [&str; 6] = ["deepspeed", "tb_nightly", "bpy", "gradio", "pythreejs", "tb-nightly"];
@@ -387,7 +391,32 @@ impl Installer {
         Ok(format!("{} paquets", filtered.len()))
     }
 
+    /// Fetch the prebuilt extensions. Only valid for the exact pinned runtime.
+    async fn native_prebuilt(&mut self) -> Result<()> {
+        if !cfg!(windows) || self.s.torch_variant != "cu124" {
+            bail!("pas de binaires précompilés pour cette configuration");
+        }
+        let zip_path = self.s.runtime().join("native-prebuilt.zip");
+        self.download("native", NATIVE_PREBUILT_URL, &zip_path).await?;
+        let repo = self.s.repo_dir();
+        let result = extract_into(&zip_path, &repo);
+        let _ = std::fs::remove_file(&zip_path);
+        result?;
+        if !(native_artifact(&repo, "rasterizer") && native_artifact(&repo, "inpaint")) {
+            bail!("archive incomplète");
+        }
+        Ok(())
+    }
+
     async fn step_native(&mut self, st: &mut RuntimeState) -> Result<String> {
+        match self.native_prebuilt().await {
+            Ok(()) => {
+                st.native.insert("rasterizer".into(), true);
+                st.native.insert("inpaint".into(), true);
+                return Ok("extensions précompilées installées".into());
+            }
+            Err(e) => self.log(format!("Binaires précompilés indisponibles ({e:#}) : compilation locale")),
+        }
         let vcvars = system::vcvars();
         let cuda = system::cuda_toolkit();
         let gpus = system::gpus();
@@ -610,6 +639,27 @@ fn extract_named(zip_path: &Path, dest: &Path, names: &[&str]) -> Result<()> {
             let mut out = std::fs::File::create(dest.join(&fname))?;
             std::io::copy(&mut entry, &mut out)?;
         }
+    }
+    Ok(())
+}
+
+/// Extract an archive as-is into `dest` (paths are kept relative to it).
+fn extract_into(zip_path: &Path, dest: &Path) -> Result<()> {
+    let file = std::fs::File::open(zip_path)?;
+    let mut archive = zip::ZipArchive::new(file)?;
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)?;
+        let Some(rel) = entry.enclosed_name() else { continue };
+        let out = dest.join(rel);
+        if entry.is_dir() {
+            std::fs::create_dir_all(&out)?;
+            continue;
+        }
+        if let Some(parent) = out.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut f = std::fs::File::create(&out)?;
+        std::io::copy(&mut entry, &mut f)?;
     }
     Ok(())
 }
