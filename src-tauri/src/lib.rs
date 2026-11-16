@@ -69,14 +69,21 @@ fn runtime_install(app: AppHandle, state: State<'_, AppState>, force: bool, only
     ctl.cancel.store(false, Ordering::SeqCst);
     let s = state.settings();
     tauri::async_runtime::spawn(async move {
-        // Python must not hold files we are about to replace.
-        if only.is_none() || force {
-            let st = app.state::<AppState>();
+        // Python must not hold files we are about to replace (Windows locks
+        // loaded .pyd/.dll files), and must reload them afterwards.
+        let touches_files = force
+            || only.as_ref().map_or(true, |o| o.iter().any(|s| matches!(s.as_str(), "native" | "deps" | "torch" | "code" | "python")));
+        let st = app.state::<AppState>();
+        let was_running = backend::status(&st.backend, &s).await.running;
+        if touches_files {
             let _ = backend::stop(&app, &st.backend).await;
         }
-        let mut installer = runtime::Installer::new(app.clone(), s, ctl.clone());
+        let mut installer = runtime::Installer::new(app.clone(), s.clone(), ctl.clone());
         let result = installer.install(force, only).await;
         ctl.installing.store(false, Ordering::SeqCst);
+        if result.is_ok() && touches_files && was_running {
+            let _ = backend::start(&app, &st.backend, &s).await;
+        }
         let payload = match &result {
             Ok(()) => serde_json::json!({"ok": true}),
             Err(e) => serde_json::json!({"ok": false, "error": format!("{e:#}")}),
