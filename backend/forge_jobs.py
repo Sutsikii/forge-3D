@@ -240,9 +240,10 @@ def _friendly_error(exc: Exception) -> str:
         return ("Mémoire GPU insuffisante. Passe sur le profil VRAM « Économe », baisse la résolution "
                 "d'octree / de texture ou le nombre de vues. (" + text[:300] + ")")
     if "custom_rasterizer" in low:
-        return "Extension custom_rasterizer absente : recompile les extensions natives dans Réglages → Moteur."
+        return ("Extension custom_rasterizer indisponible : réinstalle les extensions dans Réglages → Moteur. ("
+                + text[:300] + ")")
     if "meshverticeinpaint" in low or "mesh_inpaint" in low:
-        return "Extension mesh_inpaint_processor absente : recompile les extensions natives."
+        return "Extension mesh_inpaint_processor indisponible : réinstalle les extensions. (" + text[:300] + ")"
     return text[:2000]
 
 

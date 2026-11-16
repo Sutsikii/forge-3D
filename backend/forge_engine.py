@@ -267,6 +267,11 @@ class Engine:
             return
 
         self._patch_snapshot()
+        # Native extensions may have been installed while this process was
+        # running; drop cached directory listings so they become importable.
+        import importlib
+
+        importlib.invalidate_caches()
         from textureGenPipeline import Hunyuan3DPaintConfig, Hunyuan3DPaintPipeline
 
         repo = CONFIG.repo_dir
