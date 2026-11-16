@@ -343,6 +343,10 @@ class Engine:
                 check_cancel()
                 job = get_job()
                 if job is not None:
+                    if job.detail != label and not CONFIG.profile_defaults["keep_loaded"]:
+                        # Return the previous phase's cached blocks (e.g. the
+                        # diffusion activations) before the next one allocates.
+                        _free_cuda()
                     job.step(label)
                     job.stage_frac = max(job.stage_frac, frac)
                 return fn(*args, **kwargs)
