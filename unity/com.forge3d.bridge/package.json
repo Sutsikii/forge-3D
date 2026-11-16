@@ -1,0 +1,10 @@
+{
+  "name": "com.forge3d.bridge",
+  "version": "0.1.0",
+  "displayName": "Forge3D Bridge",
+  "description": "Connects the Unity Editor to Forge3D Studio: import generated 3D models into the open scene and let MCP clients inspect and arrange it.",
+  "unity": "2022.3",
+  "license": "MIT",
+  "keywords": ["forge3d", "3d generation", "mcp", "gltf"],
+  "author": { "name": "Forge3D" }
+}

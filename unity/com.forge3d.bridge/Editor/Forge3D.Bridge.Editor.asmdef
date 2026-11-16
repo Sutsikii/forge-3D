@@ -1,0 +1,14 @@
+{
+    "name": "Forge3D.Bridge.Editor",
+    "rootNamespace": "Forge3D.Bridge",
+    "references": [],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
