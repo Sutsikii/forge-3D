@@ -286,9 +286,17 @@ class Engine:
         conf.texture_size = texture_size
         t0 = time.time()
         self.paint = Hunyuan3DPaintPipeline(conf)
+        mv = self.paint.models["multiview_model"].pipeline
+        # The pipeline decodes every view (albedo + MR) in one VAE batch; on
+        # 12-16 GB cards that overflows into shared memory and crawls.
+        # Slicing decodes one image at a time for the same result.
+        try:
+            mv.vae.enable_slicing()
+        except Exception as exc:
+            print(f"[forge] vae slicing unavailable: {exc}")
         if CONFIG.paint_offload:
             try:
-                self.paint.models["multiview_model"].pipeline.enable_model_cpu_offload()
+                mv.enable_model_cpu_offload()
                 print("[forge] paint: model CPU offload enabled")
             except Exception as exc:
                 print(f"[forge] paint offload failed: {exc}")
