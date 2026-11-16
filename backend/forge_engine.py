@@ -319,12 +319,6 @@ class Engine:
             mv.vae.enable_slicing()
         except Exception as exc:
             print(f"[forge] vae slicing unavailable: {exc}")
-        if CONFIG.paint_offload:
-            try:
-                mv.enable_model_cpu_offload()
-                print("[forge] paint: model CPU offload enabled")
-            except Exception as exc:
-                print(f"[forge] paint offload failed: {exc}")
         self._instrument_paint()
         self.paint_key = key
         self.loaded_at["paint"] = time.time()

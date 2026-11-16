@@ -64,7 +64,7 @@ def set_config(values: dict = Body(...)) -> dict:
     changed = CONFIG.update(values)
     if "flashvdm" in changed or "hunyuan_dir" in changed:
         ENGINE.unload("shape")
-    if "hunyuan_dir" in changed or "paint_offload" in changed:
+    if "hunyuan_dir" in changed:
         ENGINE.unload("paint")
     if "t2i_model" in changed:
         ENGINE.unload("t2i")

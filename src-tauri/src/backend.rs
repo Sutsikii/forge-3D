@@ -146,7 +146,6 @@ pub async fn start(app: &AppHandle, ctl: &BackendCtl, s: &Settings) -> Result<Ba
         .env("FORGE3D_OUTPUTS", &s.outputs_dir)
         .env("FORGE3D_PROFILE", &s.vram_profile)
         .env("FORGE3D_FLASHVDM", if s.flashvdm { "1" } else { "0" })
-        .env("FORGE3D_PAINT_OFFLOAD", if s.paint_offload { "1" } else { "0" })
         .env("FORGE3D_T2I", &s.t2i_model)
         .env("PYTHONUNBUFFERED", "1")
         .env("PYTHONDONTWRITEBYTECODE", "1")

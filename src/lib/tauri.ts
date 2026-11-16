@@ -11,7 +11,6 @@ export interface Settings {
   port: number;
   vramProfile: VramProfile;
   flashvdm: boolean;
-  paintOffload: boolean;
   t2iModel: string;
   torchVariant: string;
   autoStart: boolean;

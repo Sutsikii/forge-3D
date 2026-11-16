@@ -19,7 +19,6 @@ export async function applySettings(next: Settings): Promise<Settings> {
       .setConfig({
         profile: saved.vramProfile,
         flashvdm: saved.flashvdm,
-        paint_offload: saved.paintOffload,
         t2i_model: saved.t2iModel,
         hunyuan_dir: saved.hunyuanDir,
         outputs_dir: saved.outputsDir,

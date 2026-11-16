@@ -43,11 +43,10 @@ class Config:
     profile: str = field(default_factory=lambda: _env("FORGE3D_PROFILE", "low"))
     flashvdm: bool = field(default_factory=lambda: _env("FORGE3D_FLASHVDM", "1") == "1")
     t2i_model: str = field(default_factory=lambda: _env("FORGE3D_T2I", "stabilityai/sdxl-turbo"))
-    paint_offload: bool = field(default_factory=lambda: _env("FORGE3D_PAINT_OFFLOAD", "0") == "1")
 
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
-    MUTABLE = ("profile", "flashvdm", "t2i_model", "paint_offload", "hunyuan_dir", "outputs_dir")
+    MUTABLE = ("profile", "flashvdm", "t2i_model", "hunyuan_dir", "outputs_dir")
 
     def __post_init__(self) -> None:
         if not self.models_dir:
@@ -90,7 +89,7 @@ class Config:
                     continue
                 if key == "profile" and value not in PROFILES:
                     continue
-                if key in ("flashvdm", "paint_offload"):
+                if key == "flashvdm":
                     value = bool(value)
                 if getattr(self, key) != value:
                     setattr(self, key, value)

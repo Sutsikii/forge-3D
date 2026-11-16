@@ -124,12 +124,6 @@ export function SettingsPage() {
             ))}
           </div>
           <Toggle checked={draft.flashvdm} onChange={(v) => upd("flashvdm", v)} label="FlashVDM" hint="décodage du volume accéléré (recommandé)" />
-          <Toggle
-            checked={draft.paintOffload}
-            onChange={(v) => upd("paintOffload", v)}
-            label="Offload CPU de la peinture"
-            hint="expérimental : moins de VRAM, beaucoup plus lent"
-          />
         </Section>
 
         <Section title="Texte → image">
