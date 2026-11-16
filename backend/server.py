@@ -23,6 +23,7 @@ from forge_config import CONFIG, VERSION  # noqa: E402
 from forge_engine import ENGINE, capabilities, gpu_info, setup_paths  # noqa: E402
 from forge_jobs import JOBS  # noqa: E402
 from forge_submit import JobError, submit as submit_job  # noqa: E402
+from forge_mcp import router as mcp_router  # noqa: E402
 
 app = FastAPI(title="Forge3D API", version=VERSION)
 app.add_middleware(
@@ -37,6 +38,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(mcp_router)
 STARTED = time.time()
 
 
